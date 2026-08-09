@@ -1,0 +1,245 @@
+{
+  "reportVersion": "provider-conformance-report/1",
+  "reportGenerator": "@zioladev/provider-conformance",
+  "reportGeneratorVersion": "0.1.0",
+  "generatedAt": "2026-08-09T00:00:00.000Z",
+  "provider": {
+    "name": "@example/sample-cafe",
+    "providerDefHash": "fnv1a:9f4fe6e5",
+    "declaredTools": [
+      {
+        "name": "place_order",
+        "effect": "state-changing"
+      },
+      {
+        "name": "find_item",
+        "effect": "read"
+      }
+    ]
+  },
+  "lane": {
+    "runtimeId": "reference-runtime/1",
+    "browserVersion": null,
+    "toolSurfaceHash": "fnv1a:022df758"
+  },
+  "cases": [
+    {
+      "caseId": "same-surface-two-paths",
+      "taskId": "order-latte-M/1",
+      "paths": [
+        {
+          "adapterId": "scripted",
+          "adapterVersion": "1.0.0",
+          "modelId": "scripted/deterministic",
+          "observed": {
+            "definition": {
+              "valid": true,
+              "violations": []
+            },
+            "browserRuntime": {
+              "ok": true
+            },
+            "discovery": {
+              "ok": true,
+              "names": [
+                "place_order",
+                "find_item"
+              ]
+            },
+            "adapterFormat": {
+              "ok": true,
+              "normalizationApplied": [],
+              "droppedRequiredFields": []
+            },
+            "decision": {
+              "type": "tool_call",
+              "toolName": "place_order",
+              "arguments": {
+                "item": "latte",
+                "size": "M"
+              }
+            },
+            "bridge": {
+              "attempted": true,
+              "ok": true,
+              "toolName": "place_order",
+              "arguments": {
+                "item": "latte",
+                "size": "M"
+              }
+            },
+            "providerExec": {
+              "reached": true,
+              "ok": true,
+              "firedTool": "place_order",
+              "firedEffect": "state-changing"
+            },
+            "argsValidation": {
+              "checked": true,
+              "ok": true,
+              "missingOrInvalidFields": []
+            },
+            "evidence": {
+              "checked": true,
+              "ok": true,
+              "executionResult": {
+                "executed": true,
+                "confirmationId": "ORDER-1501",
+                "data": {
+                  "item": "latte",
+                  "size": "M"
+                }
+              },
+              "violations": []
+            }
+          },
+          "derived": {
+            "outcome": "executed",
+            "disposition": "acted",
+            "signalVerdicts": {
+              "provider_definition": "PASS",
+              "browser_runtime": "PASS",
+              "provider_runtime": "PASS",
+              "consumer_adapter": "PASS",
+              "model_tool_selection": "PASS",
+              "execution_bridge": "PASS",
+              "model_arguments": "PASS",
+              "provider_execution": "PASS",
+              "evidence_contract": "PASS"
+            },
+            "attribution": [],
+            "providerNonconformance": false,
+            "observableOutcomeKey": "executed:place_order({\"item\":\"latte\",\"size\":\"M\"})"
+          }
+        },
+        {
+          "adapterId": "anthropic-claude",
+          "adapterVersion": "1.0.0",
+          "modelId": "claude-opus-4-8",
+          "observed": {
+            "definition": {
+              "valid": true,
+              "violations": []
+            },
+            "browserRuntime": {
+              "ok": true
+            },
+            "discovery": {
+              "ok": true,
+              "names": [
+                "place_order",
+                "find_item"
+              ]
+            },
+            "adapterFormat": {
+              "ok": true,
+              "normalizationApplied": [],
+              "droppedRequiredFields": []
+            },
+            "decision": {
+              "type": "tool_call",
+              "toolName": "place_order",
+              "arguments": {
+                "item": "latte",
+                "size": "L"
+              },
+              "raw": {
+                "content": [
+                  {
+                    "type": "tool_use",
+                    "id": "tu",
+                    "name": "place_order",
+                    "input": {
+                      "item": "latte",
+                      "size": "L"
+                    }
+                  }
+                ],
+                "stop_reason": "tool_use"
+              }
+            },
+            "bridge": {
+              "attempted": true,
+              "ok": true,
+              "toolName": "place_order",
+              "arguments": {
+                "item": "latte",
+                "size": "L"
+              }
+            },
+            "providerExec": {
+              "reached": true,
+              "ok": true,
+              "firedTool": "place_order",
+              "firedEffect": "state-changing"
+            },
+            "argsValidation": {
+              "checked": true,
+              "ok": true,
+              "missingOrInvalidFields": []
+            },
+            "evidence": {
+              "checked": true,
+              "ok": true,
+              "executionResult": {
+                "executed": true,
+                "confirmationId": "ORDER-1502",
+                "data": {
+                  "item": "latte",
+                  "size": "L"
+                }
+              },
+              "violations": []
+            }
+          },
+          "derived": {
+            "outcome": "executed",
+            "disposition": "acted",
+            "signalVerdicts": {
+              "provider_definition": "PASS",
+              "browser_runtime": "PASS",
+              "provider_runtime": "PASS",
+              "consumer_adapter": "PASS",
+              "model_tool_selection": "PASS",
+              "execution_bridge": "PASS",
+              "model_arguments": "PASS",
+              "provider_execution": "PASS",
+              "evidence_contract": "PASS"
+            },
+            "attribution": [],
+            "providerNonconformance": false,
+            "observableOutcomeKey": "executed:place_order({\"item\":\"latte\",\"size\":\"L\"})"
+          }
+        }
+      ],
+      "divergence": {
+        "kind": "behavioral",
+        "representationalDifference": true,
+        "withinAllowable": true,
+        "byPath": {
+          "scripted": "executed:place_order({\"item\":\"latte\",\"size\":\"M\"})",
+          "anthropic-claude": "executed:place_order({\"item\":\"latte\",\"size\":\"L\"})"
+        }
+      },
+      "provider": "PASS"
+    }
+  ],
+  "summary": {
+    "provider": "PASS",
+    "byLayer": {
+      "provider_definition": "PASS",
+      "browser_runtime": "PASS",
+      "provider_runtime": "PASS",
+      "consumer_adapter": "PASS",
+      "model_tool_selection": "PASS",
+      "execution_bridge": "PASS",
+      "model_arguments": "PASS",
+      "provider_execution": "PASS",
+      "evidence_contract": "PASS",
+      "scripted": "PASS",
+      "anthropic-claude": "PASS",
+      "provider": "PASS"
+    },
+    "notes": []
+  }
+}
