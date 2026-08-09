@@ -1,0 +1,1119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Provider-conformance — Chrome/WebMCP acceptance</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 24px; max-width: 900px; }
+  h1 { font-size: 18px; }
+  .status { padding: 8px 12px; border-radius: 6px; margin: 12px 0; background: #eee; }
+  .status.pass { background: #d7f5dd; color: #05630f; }
+  .status.fail { background: #fde2e1; color: #8a1008; }
+  .status.pending { background: #fff4ce; color: #7a5b00; }
+  button { font: inherit; padding: 6px 14px; margin-right: 8px; cursor: pointer; }
+  pre { background: rgba(127,127,127,.12); padding: 12px; border-radius: 6px; overflow: auto; white-space: pre-wrap; }
+  textarea { width: 100%; height: 240px; font: 12px/1.4 ui-monospace, monospace; }
+  small { opacity: .75; }
+</style>
+</head>
+<body>
+<h1>Provider-conformance — Chrome/WebMCP acceptance lane</h1>
+<p><small>Open in a WebMCP-enabled Chrome (Canary + the WebMCP flag). Runs the same provider
+surface + pipeline through the real <code>document.modelContext</code>, producing
+<code>provider-conformance-report/1</code> with browser-runtime provenance — plus one
+intentionally browser-owned failure. Lane: <code>chrome-webmcp</code>.</small></p>
+<button id="run">Run acceptance</button>
+<button id="copy">Copy report JSON</button>
+<button id="download">Download report JSON</button>
+<div id="status" class="status">loading…</div>
+<pre id="log"></pre>
+<textarea id="json" spellcheck="false" placeholder="report JSON appears here after a run"></textarea>
+<script>"use strict";
+var ProviderConformance = (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+  // src/index.ts
+  var index_exports = {};
+  __export(index_exports, {
+    CHROME_WEBMCP_RUNTIME_ID: () => CHROME_WEBMCP_RUNTIME_ID,
+    PROVIDER_OWNED: () => PROVIDER_OWNED,
+    REFERENCE_RUNTIME_ID: () => REFERENCE_RUNTIME_ID,
+    REPORT_GENERATOR: () => REPORT_GENERATOR,
+    REPORT_GENERATOR_VERSION: () => REPORT_GENERATOR_VERSION,
+    REPORT_VERSION: () => REPORT_VERSION,
+    ReferenceRuntime: () => ReferenceRuntime,
+    anthropicFetchTransport: () => anthropicFetchTransport,
+    assembleReport: () => assembleReport,
+    buildCase: () => buildCase,
+    buildCaseOnRuntime: () => buildCaseOnRuntime,
+    captureBrowserVersion: () => captureBrowserVersion,
+    cleanSchemaForGemini: () => cleanSchemaForGemini,
+    detectWebMcpRuntime: () => detectWebMcpRuntime,
+    discover: () => discover,
+    evaluateCase: () => evaluateCase,
+    evaluateDivergence: () => evaluateDivergence,
+    evaluatePath: () => evaluatePath,
+    execute: () => execute,
+    findModelContext: () => findModelContext,
+    geminiFetchTransport: () => geminiFetchTransport,
+    makeClaudeAdapter: () => makeClaudeAdapter,
+    makeGeminiAdapter: () => makeGeminiAdapter,
+    makeGptAdapter: () => makeGptAdapter,
+    makeScriptedAdapter: () => makeScriptedAdapter,
+    normalizeDiscovered: () => normalizeDiscovered,
+    openaiFetchTransport: () => openaiFetchTransport,
+    providerGrade: () => providerGrade,
+    renderHuman: () => renderHuman,
+    runPath: () => runPath,
+    runPathOnRuntime: () => runPathOnRuntime,
+    staticAnthropicTransport: () => staticAnthropicTransport,
+    staticGeminiTransport: () => staticGeminiTransport,
+    staticOpenAiTransport: () => staticOpenAiTransport,
+    validateDefinition: () => validateDefinition,
+    validateInput: () => validateInput,
+    validateProvider: () => validateProvider
+  });
+
+  // src/types.ts
+  var PROVIDER_OWNED = [
+    "provider_definition",
+    "provider_runtime",
+    "provider_execution",
+    "evidence_contract"
+  ];
+
+  // src/engine.ts
+  function canonical(value) {
+    const seen = /* @__PURE__ */ new WeakSet();
+    const walk = (v) => {
+      if (v === null || typeof v !== "object") return v;
+      if (seen.has(v)) return "[Circular]";
+      seen.add(v);
+      if (Array.isArray(v)) return v.map(walk);
+      const out = {};
+      for (const key of Object.keys(v).sort()) {
+        out[key] = walk(v[key]);
+      }
+      return out;
+    };
+    return JSON.stringify(walk(value));
+  }
+  function observableKey(outcome, firedTool, args) {
+    if (outcome === "executed" && firedTool !== void 0) {
+      return `executed:${firedTool}(${canonical(args)})`;
+    }
+    return outcome;
+  }
+  function dispositionOf(outcome, firedEffect) {
+    switch (outcome) {
+      case "executed":
+        return firedEffect === "read" ? "inspected" : "acted";
+      case "clarification":
+      case "no_tool_selected":
+      case "blocked_by_provider_contract":
+        return "deferred";
+      default:
+        return "failed";
+    }
+  }
+  function behavioralKeyOf(disposition, firedTool, args) {
+    if (disposition === "acted" && firedTool !== void 0) {
+      return `acted:${firedTool}(${canonical(args)})`;
+    }
+    return disposition;
+  }
+  function evaluatePath(obs, task, expectedTool) {
+    const s = obs.steps;
+    const cv = {};
+    const attribution = [];
+    const fail = (category, signal, detail) => {
+      cv[category] = "FAIL";
+      attribution.push({ category, verdict: "FAIL", signal, detail });
+    };
+    const done = (outcome, firedTool, args) => {
+      const observableOutcomeKey = observableKey(outcome, firedTool, args);
+      const RESPONSE_OUTCOMES = /* @__PURE__ */ new Set(["executed", "clarification", "no_tool_selected"]);
+      const hasFault = attribution.some((a) => a.verdict === "FAIL");
+      if (!hasFault && task.allowableOutcomes.length > 0 && RESPONSE_OUTCOMES.has(outcome) && !isWithinAllowable(outcome, observableOutcomeKey, task)) {
+        let category;
+        let detail;
+        if (outcome === "executed" && s.providerExec.firedEffect !== "read") {
+          category = "model_arguments";
+          detail = "executed a state-changing tool using a required value the task did not supply while the provider declares no default";
+        } else if (outcome === "executed") {
+          category = "model_tool_selection";
+          detail = "selected an exploratory read tool that was outside the allowable terminal outcomes for this test case";
+        } else {
+          category = "model_tool_selection";
+          detail = `model responded "${outcome}", which the task's frozen allowable set does not permit`;
+        }
+        cv[category] = "FAIL";
+        attribution.push({ category, verdict: "FAIL", signal: "task_conformance", detail });
+      }
+      const providerNonconformance = PROVIDER_OWNED.some((c) => cv[c] === "FAIL");
+      const disposition = dispositionOf(outcome, s.providerExec.firedEffect);
+      const behavioralKey = behavioralKeyOf(disposition, firedTool, args);
+      return { outcome, disposition, categoryVerdicts: cv, attribution, providerNonconformance, observableOutcomeKey, behavioralKey };
+    };
+    if (!s.definition.valid) {
+      fail("provider_definition", "definition", s.definition.violations.join("; ") || "invalid provider definition");
+      cv.provider_execution = "NOT_REACHED";
+      return done("provider_error");
+    }
+    cv.provider_definition = "PASS";
+    if (!s.browserRuntime.ok) {
+      fail("browser_runtime", "runtime", s.browserRuntime.detail ?? "runtime surface unavailable or malformed");
+      cv.provider_execution = "NOT_REACHED";
+      return done("runtime_error");
+    }
+    cv.browser_runtime = "PASS";
+    if (!s.discovery.ok) {
+      const detail = s.discovery.missingClaimedTool ? `provider claimed a tool that discovery did not surface: ${s.discovery.missingClaimedTool}` : "tool discovery failed";
+      fail("provider_runtime", "discovery", detail);
+      cv.provider_execution = "NOT_REACHED";
+      return done("provider_error");
+    }
+    cv.provider_runtime = "PASS";
+    if (!s.adapterFormat.ok) {
+      fail("consumer_adapter", "schema_accepted", s.adapterFormat.error?.message ?? "schema formatting failed");
+      cv.provider_execution = "NOT_REACHED";
+      return done("adapter_error");
+    }
+    cv.consumer_adapter = "PASS";
+    const d = s.decision;
+    if (d.type === "error") {
+      const transport = d.error.code.startsWith("transport");
+      fail("consumer_adapter", "model_decision", `${d.error.code}: ${d.error.message}`);
+      return done(transport ? "transport_error" : "adapter_error");
+    }
+    if (d.type === "clarification") {
+      cv.provider_execution = "NOT_REACHED";
+      return done("clarification");
+    }
+    if (d.type === "no_action") {
+      cv.provider_execution = "NOT_REACHED";
+      return done("no_tool_selected");
+    }
+    if (expectedTool !== void 0 && d.toolName !== expectedTool && !task.allowableOutcomes.includes(`executed:${d.toolName}`)) {
+      fail("model_tool_selection", "model_decision", `selected "${d.toolName}", expected "${expectedTool}"`);
+      cv.provider_execution = "NOT_REACHED";
+      return done("no_tool_selected");
+    }
+    cv.model_tool_selection = "PASS";
+    if (!s.bridge.attempted) {
+      fail("execution_bridge", "bridge_invoked", "a tool_call decision was never attempted by the bridge");
+      cv.provider_execution = "NOT_REACHED";
+      return done("execution_bridge_error");
+    }
+    if (!s.bridge.ok) {
+      fail("execution_bridge", "bridge_invoked", s.bridge.error?.message ?? "bridge failed to invoke a valid decision");
+      cv.provider_execution = "NOT_REACHED";
+      return done("execution_bridge_error");
+    }
+    cv.execution_bridge = "PASS";
+    if (s.argsValidation.checked && !s.argsValidation.ok) {
+      const bad = s.argsValidation.missingOrInvalidFields;
+      const dropped = s.adapterFormat.droppedRequiredFields;
+      const adapterCaused = bad.filter((f) => dropped.includes(f));
+      if (adapterCaused.length > 0) {
+        fail("consumer_adapter", "normalized_arguments", `adapter dropped required field(s): ${adapterCaused.join(", ")}`);
+      } else {
+        fail("model_arguments", "normalized_arguments", `model produced invalid/missing field(s): ${bad.join(", ")}`);
+      }
+      cv.provider_execution = "NOT_REACHED";
+      return done("malformed_arguments");
+    }
+    cv.model_arguments = "PASS";
+    if (!s.providerExec.reached) {
+      fail("execution_bridge", "provider_execution", "provider execution not reached despite a valid invocation");
+      return done("execution_bridge_error");
+    }
+    if (!s.providerExec.ok) {
+      fail("provider_execution", "provider_execution", s.providerExec.error?.message ?? "provider executed incorrectly");
+      return done("provider_error", s.providerExec.firedTool, s.bridge.arguments);
+    }
+    cv.provider_execution = "PASS";
+    if (s.evidence.checked && !s.evidence.ok) {
+      fail("evidence_contract", "evidence", s.evidence.violations.join("; ") || "execution evidence violates the ExecutionResult contract");
+      return done("provider_error", s.providerExec.firedTool, s.bridge.arguments);
+    }
+    cv.evidence_contract = "PASS";
+    return done("executed", s.providerExec.firedTool, s.bridge.arguments);
+  }
+  function isWithinAllowable(outcome, key, task) {
+    const allow = task.allowableOutcomes;
+    if (allow.includes(outcome)) return true;
+    if (allow.includes(key)) return true;
+    return allow.some((a) => key.startsWith(a));
+  }
+  function isAllowable(derived, task) {
+    return isWithinAllowable(derived.outcome, derived.observableOutcomeKey, task);
+  }
+  function evaluateDivergence(paths, deriveds, task) {
+    const byPath = {};
+    paths.forEach((p, i) => {
+      byPath[p.adapterId] = deriveds[i]?.observableOutcomeKey ?? "unknown";
+    });
+    const rawKeys = deriveds.map((d) => d.observableOutcomeKey);
+    const behavioralKeys = deriveds.map((d) => d.behavioralKey);
+    const withinAllowable = deriveds.every((d) => isAllowable(d, task));
+    const representationalDifference = new Set(rawKeys).size > 1;
+    const firstBehavior = behavioralKeys[0];
+    if (behavioralKeys.every((k) => k === firstBehavior)) {
+      return { kind: "none", observedOutcomeKey: firstBehavior, byPath, withinAllowable, representationalDifference };
+    }
+    if (deriveds.some((d) => d.providerNonconformance)) {
+      return { kind: "conformance", byPath, withinAllowable, representationalDifference };
+    }
+    if (withinAllowable) {
+      return { kind: "behavioral", byPath, withinAllowable, representationalDifference };
+    }
+    return { kind: "outcome", byPath, withinAllowable, representationalDifference };
+  }
+  function providerGrade(deriveds) {
+    let grade = "PASS";
+    for (const d of deriveds) {
+      for (const c of PROVIDER_OWNED) {
+        if (d.categoryVerdicts[c] === "FAIL") return "FAIL";
+        if (d.categoryVerdicts[c] === "WARN") grade = "WARN";
+      }
+    }
+    return grade;
+  }
+  function evaluateCase(c) {
+    const deriveds = c.paths.map((p) => evaluatePath(p, c.task, c.expectedTool));
+    const divergence = evaluateDivergence(c.paths, deriveds, c.task);
+    return { deriveds, divergence, provider: providerGrade(deriveds) };
+  }
+
+  // src/normalize.ts
+  var SUPPORTED_TYPES = /* @__PURE__ */ new Set(["object", "string", "number", "integer", "boolean", "array"]);
+  var SUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
+    "type",
+    "properties",
+    "required",
+    "items",
+    "enum",
+    "description",
+    "minimum",
+    "maximum",
+    "minLength",
+    "maxLength",
+    "additionalProperties"
+  ]);
+  function validateDefinition(def) {
+    const violations = [];
+    if (def.effect !== "read" && def.effect !== "state-changing") {
+      violations.push(`tool "${def.name}" has an invalid or missing effect`);
+    }
+    if (!def.inputSchema || typeof def.inputSchema !== "object") {
+      violations.push(`tool "${def.name}" is missing an inputSchema`);
+      return { valid: false, violations };
+    }
+    const walk = (schema, path) => {
+      for (const key of Object.keys(schema)) {
+        if (!SUPPORTED_KEYWORDS.has(key)) {
+          violations.push(`unsupported schema keyword "${key}" at ${path}`);
+        }
+      }
+      const t = schema.type;
+      const types = Array.isArray(t) ? t : t === void 0 ? [] : [t];
+      for (const tt of types) {
+        if (typeof tt === "string" && !SUPPORTED_TYPES.has(tt)) {
+          violations.push(`unsupported type "${tt}" at ${path}`);
+        }
+      }
+      if (schema.properties) {
+        for (const [name, child] of Object.entries(schema.properties)) {
+          walk(child, `${path}.${name}`);
+        }
+      }
+      if (schema.items) walk(schema.items, `${path}[]`);
+    };
+    walk(def.inputSchema, def.name);
+    return { valid: violations.length === 0, violations };
+  }
+  function validateProvider(tools) {
+    const violations = [];
+    for (const def of tools) {
+      const r = validateDefinition(def);
+      violations.push(...r.violations);
+    }
+    return { valid: violations.length === 0, violations };
+  }
+  function normalizeDiscovered(handles, defs) {
+    const byName = new Map(defs.map((d) => [d.name, d]));
+    return handles.map((h) => {
+      const def = byName.get(h.name);
+      let schema;
+      if (def) schema = def.inputSchema;
+      else if (typeof h.inputSchema === "string") schema = JSON.parse(h.inputSchema);
+      else if (h.inputSchema && typeof h.inputSchema === "object") schema = h.inputSchema;
+      else schema = { type: "object" };
+      return {
+        name: h.name,
+        description: h.description ?? "",
+        inputSchema: schema,
+        effect: def ? def.effect : "state-changing"
+      };
+    });
+  }
+  function validateInput(schema, args) {
+    const missing = [];
+    const obj = args && typeof args === "object" ? args : {};
+    for (const req of schema.required ?? []) {
+      if (obj[req] === void 0 || obj[req] === null) missing.push(req);
+    }
+    for (const [name, propSchema] of Object.entries(schema.properties ?? {})) {
+      const val = obj[name];
+      if (val === void 0) continue;
+      const t = propSchema.type;
+      if (typeof t === "string" && !typeMatches(t, val)) missing.push(name);
+      else if (Array.isArray(propSchema.enum) && !propSchema.enum.includes(val)) missing.push(name);
+    }
+    return { ok: missing.length === 0, missingOrInvalidFields: [...new Set(missing)] };
+  }
+  function typeMatches(type, val) {
+    switch (type) {
+      case "string":
+        return typeof val === "string";
+      case "number":
+        return typeof val === "number";
+      case "integer":
+        return typeof val === "number" && Number.isInteger(val);
+      case "boolean":
+        return typeof val === "boolean";
+      case "array":
+        return Array.isArray(val);
+      case "object":
+        return typeof val === "object" && val !== null && !Array.isArray(val);
+      default:
+        return true;
+    }
+  }
+
+  // src/reference-runtime.ts
+  var REFERENCE_RUNTIME_ID = "reference-runtime/1";
+  var ReferenceRuntime = class {
+    #tools = /* @__PURE__ */ new Map();
+    registerTool(def, handler) {
+      const handle = {
+        name: def.name,
+        description: def.description,
+        inputSchema: JSON.stringify(def.inputSchema),
+        __registered: true
+      };
+      this.#tools.set(def.name, { def, handler, handle });
+    }
+    getTools() {
+      return [...this.#tools.values()].map((t) => t.handle);
+    }
+    /** Execute a tool. Requires the RegisteredTool handle; a string throws. */
+    async executeTool(tool, argsString) {
+      if (typeof tool === "string" || !tool || tool.__registered !== true) {
+        throw new TypeError("executeTool requires a RegisteredTool handle, not a name string");
+      }
+      const entry = this.#tools.get(tool.name);
+      if (!entry) throw new Error(`unknown tool: ${tool.name}`);
+      const args = argsString ? JSON.parse(argsString) : {};
+      const result = await entry.handler(args);
+      return JSON.stringify(result);
+    }
+  };
+
+  // src/webmcp-runtime.ts
+  var CHROME_WEBMCP_RUNTIME_ID = "chrome-webmcp";
+  function findModelContext() {
+    const g = globalThis;
+    const ctx = g.document?.modelContext ?? g.navigator?.modelContextTesting ?? g.navigator?.modelContext ?? null;
+    if (!ctx || typeof ctx.executeTool !== "function") return null;
+    if (typeof ctx.getTools !== "function" && typeof ctx.listTools !== "function") return null;
+    return ctx;
+  }
+  function detectWebMcpRuntime() {
+    const ctx = findModelContext();
+    if (!ctx) return null;
+    const list = typeof ctx.getTools === "function" ? ctx.getTools.bind(ctx) : ctx.listTools.bind(ctx);
+    return {
+      async getTools() {
+        const tools = await Promise.resolve(list());
+        return Array.isArray(tools) ? tools : [];
+      },
+      async executeTool(tool, argsString) {
+        const raw = await Promise.resolve(ctx.executeTool(tool, argsString));
+        return typeof raw === "string" ? raw : JSON.stringify(raw);
+      }
+    };
+  }
+  function captureBrowserVersion() {
+    const nav = globalThis.navigator;
+    return typeof nav?.userAgent === "string" ? nav.userAgent : null;
+  }
+
+  // src/bridge.ts
+  async function discover(runtime, defs) {
+    const handles = await runtime.getTools();
+    return normalizeDiscovered(handles, defs);
+  }
+  async function execute(runtime, toolName, args) {
+    const handles = await runtime.getTools();
+    const handle = handles.find((t) => t.name === toolName);
+    if (!handle) {
+      return { ok: false, error: { code: "bridge_no_handle", message: `no RegisteredTool handle for "${toolName}"` } };
+    }
+    try {
+      const raw = await runtime.executeTool(handle, JSON.stringify(args ?? {}));
+      const result = JSON.parse(raw);
+      return { ok: true, firedTool: toolName, executionResult: result };
+    } catch (err) {
+      return {
+        ok: false,
+        error: { code: "bridge_execute_failed", message: err instanceof Error ? err.message : String(err) }
+      };
+    }
+  }
+
+  // src/adapters/scripted.ts
+  function makeScriptedAdapter(config) {
+    const decide = config.decide;
+    return {
+      id: config.id ?? "scripted",
+      version: config.version ?? "1.0.0",
+      modelId: config.modelId ?? "scripted/deterministic",
+      async plan(input) {
+        return typeof decide === "function" ? decide(input) : decide;
+      }
+    };
+  }
+
+  // src/adapters/claude.ts
+  function makeClaudeAdapter(config) {
+    const modelId = config.modelId ?? "claude-opus-4-8";
+    return {
+      id: "anthropic-claude",
+      version: config.version ?? "1.0.0",
+      modelId,
+      async plan(input) {
+        const tools = input.tools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          input_schema: t.inputSchema
+        }));
+        const req = {
+          model: modelId,
+          messages: [{ role: "user", content: input.task.text }],
+          tools,
+          max_tokens: config.maxTokens ?? 1024,
+          ...input.system ?? config.system ? { system: input.system ?? config.system } : {}
+        };
+        let res;
+        try {
+          res = await config.transport(req);
+        } catch (err) {
+          return {
+            type: "error",
+            error: { code: "transport_error", message: err instanceof Error ? err.message : String(err) }
+          };
+        }
+        const blocks = res.content ?? [];
+        const toolUse = blocks.find((b) => b.type === "tool_use");
+        if (toolUse) {
+          return { type: "tool_call", toolName: toolUse.name, arguments: toolUse.input, raw: res };
+        }
+        const text = blocks.find((b) => b.type === "text");
+        return { type: "no_action", reason: text ? text.text : "model returned no tool call", raw: res };
+      }
+    };
+  }
+  function anthropicFetchTransport(opts) {
+    const g = globalThis;
+    const apiKey = opts.apiKey ?? g.process?.env?.["ANTHROPIC_API_KEY"];
+    const baseUrl = opts.baseUrl ?? "https://api.anthropic.com";
+    return async (req) => {
+      if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
+      const res = await fetch(`${baseUrl}/v1/messages`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify(req)
+      });
+      if (!res.ok) {
+        throw new Error(`anthropic ${res.status}: ${await res.text()}`);
+      }
+      return await res.json();
+    };
+  }
+  function staticAnthropicTransport(response) {
+    return async () => response;
+  }
+
+  // src/adapters/gpt.ts
+  function parseArgs(raw) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  }
+  function makeGptAdapter(config) {
+    const modelId = config.modelId ?? "gpt-4o-mini";
+    return {
+      id: "openai-gpt",
+      version: config.version ?? "1.0.0",
+      modelId,
+      async plan(input) {
+        const tools = input.tools.map((t) => ({
+          type: "function",
+          function: { name: t.name, description: t.description, parameters: t.inputSchema }
+        }));
+        const messages = [];
+        const system = input.system ?? config.system;
+        if (system) messages.push({ role: "system", content: system });
+        messages.push({ role: "user", content: input.task.text });
+        const req = { model: modelId, messages, tools, tool_choice: "auto" };
+        let res;
+        try {
+          res = await config.transport(req);
+        } catch (err) {
+          return { type: "error", error: { code: "transport_error", message: err instanceof Error ? err.message : String(err) } };
+        }
+        const message = res.choices?.[0]?.message;
+        const toolCall = message?.tool_calls?.[0];
+        if (toolCall) {
+          return { type: "tool_call", toolName: toolCall.function.name, arguments: parseArgs(toolCall.function.arguments), raw: res };
+        }
+        const text = typeof message?.content === "string" ? message.content : void 0;
+        return { type: "no_action", reason: text ?? "model returned no tool call", raw: res };
+      }
+    };
+  }
+  function openaiFetchTransport(opts) {
+    const g = globalThis;
+    const apiKey = opts.apiKey ?? g.process?.env?.["OPENAI_API_KEY"];
+    const baseUrl = opts.baseUrl ?? "https://api.openai.com";
+    return async (req) => {
+      if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
+      const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(req)
+      });
+      if (!res.ok) throw new Error(`openai ${res.status}: ${await res.text()}`);
+      return await res.json();
+    };
+  }
+  function staticOpenAiTransport(response) {
+    return async () => response;
+  }
+
+  // src/adapters/gemini.ts
+  var SUPPORTED = /* @__PURE__ */ new Set(["type", "description", "enum", "properties", "required", "items", "format", "nullable", "minimum", "maximum"]);
+  function cleanSchemaForGemini(schema) {
+    const out = {};
+    const t = schema.type;
+    if (Array.isArray(t)) {
+      const nonNull = t.filter((x) => x !== "null");
+      if (t.includes("null")) out["nullable"] = true;
+      if (nonNull[0] !== void 0) out["type"] = nonNull[0];
+    } else if (typeof t === "string") {
+      out["type"] = t;
+    }
+    for (const [key, value] of Object.entries(schema)) {
+      if (key === "type") continue;
+      if (!SUPPORTED.has(key)) continue;
+      if (key === "properties" && value && typeof value === "object") {
+        const props = {};
+        for (const [name, child] of Object.entries(value)) {
+          props[name] = cleanSchemaForGemini(child);
+        }
+        out["properties"] = props;
+      } else if (key === "items" && value && typeof value === "object") {
+        out["items"] = cleanSchemaForGemini(value);
+      } else {
+        out[key] = value;
+      }
+    }
+    return out;
+  }
+  function makeGeminiAdapter(config) {
+    const modelId = config.modelId ?? "gemini-2.5-flash";
+    return {
+      id: "google-gemini",
+      version: config.version ?? "1.0.0",
+      modelId,
+      async plan(input) {
+        const functionDeclarations = input.tools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          parameters: cleanSchemaForGemini(t.inputSchema)
+        }));
+        const req = {
+          contents: [{ role: "user", parts: [{ text: input.task.text }] }],
+          tools: [{ functionDeclarations }],
+          ...input.system ?? config.system ? { systemInstruction: { parts: [{ text: input.system ?? config.system }] } } : {}
+        };
+        let res;
+        try {
+          res = await config.transport(req);
+        } catch (err) {
+          return { type: "error", error: { code: "transport_error", message: err instanceof Error ? err.message : String(err) } };
+        }
+        const parts = res.candidates?.[0]?.content?.parts ?? [];
+        const fc = parts.find((p) => p.functionCall !== void 0);
+        if (fc) {
+          return { type: "tool_call", toolName: fc.functionCall.name, arguments: fc.functionCall.args ?? {}, raw: res };
+        }
+        const text = parts.find((p) => typeof p.text === "string");
+        return { type: "no_action", reason: text?.text ?? "model returned no tool call", raw: res };
+      }
+    };
+  }
+  function geminiFetchTransport(opts) {
+    const g = globalThis;
+    const apiKey = opts.apiKey ?? g.process?.env?.["GEMINI_API_KEY"] ?? g.process?.env?.["GOOGLE_API_KEY"];
+    const model = opts.model ?? "gemini-2.5-flash";
+    const baseUrl = opts.baseUrl ?? "https://generativelanguage.googleapis.com";
+    return async (req) => {
+      if (!apiKey) throw new Error("GEMINI_API_KEY (or GOOGLE_API_KEY) is not set");
+      const res = await fetch(`${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(req)
+      });
+      if (!res.ok) throw new Error(`gemini ${res.status}: ${await res.text()}`);
+      return await res.json();
+    };
+  }
+  function staticGeminiTransport(response) {
+    return async () => response;
+  }
+
+  // src/run-case.ts
+  function checkEvidence(effect, result) {
+    const violations = [];
+    if (effect === "state-changing") {
+      if (result.executed === true && (result.confirmationId === void 0 || result.confirmationId === "")) {
+        violations.push("state-changing tool reported executed:true without a confirmationId");
+      }
+    }
+    if (result.executed === void 0 || typeof result.executed !== "boolean") {
+      violations.push('ExecutionResult is missing a boolean "executed" field');
+    }
+    return { ok: violations.length === 0, violations };
+  }
+  async function runPathOnRuntime(runtime, defs, task, adapter) {
+    const identity = { adapterId: adapter.id, adapterVersion: adapter.version, modelId: adapter.modelId };
+    const definition = validateProvider(defs);
+    let handles;
+    try {
+      handles = await runtime.getTools();
+      if (!Array.isArray(handles)) throw new Error("getTools() did not return an array");
+    } catch (err) {
+      const steps = {
+        definition,
+        browserRuntime: { ok: false, detail: err instanceof Error ? err.message : String(err) },
+        discovery: { ok: false, names: [] },
+        adapterFormat: { ok: true, normalizationApplied: [], droppedRequiredFields: [] },
+        decision: { type: "no_action", reason: "runtime surface unavailable" },
+        bridge: { attempted: false, ok: false },
+        providerExec: { reached: false, ok: false },
+        argsValidation: { checked: false, ok: true, missingOrInvalidFields: [] },
+        evidence: { checked: false, ok: true, violations: [] }
+      };
+      return { ...identity, steps };
+    }
+    const discoveredNames = handles.map((h) => h.name);
+    const missingClaimed = defs.map((d) => d.name).find((n) => !discoveredNames.includes(n));
+    const discovery = {
+      ok: missingClaimed === void 0,
+      names: discoveredNames,
+      ...missingClaimed !== void 0 ? { missingClaimedTool: missingClaimed } : {}
+    };
+    const normalized = await discover(runtime, defs);
+    const decision = await adapter.plan({ task, tools: normalized });
+    const adapterFormat = { ok: true, normalizationApplied: [], droppedRequiredFields: [] };
+    const base = {
+      definition,
+      browserRuntime: { ok: true },
+      discovery,
+      adapterFormat,
+      decision,
+      bridge: { attempted: false, ok: false },
+      providerExec: { reached: false, ok: false },
+      argsValidation: { checked: false, ok: true, missingOrInvalidFields: [] },
+      evidence: { checked: false, ok: true, violations: [] }
+    };
+    if (decision.type !== "tool_call") {
+      return { ...identity, steps: base };
+    }
+    const def = defs.find((d) => d.name === decision.toolName);
+    if (!def) {
+      return {
+        ...identity,
+        steps: { ...base, bridge: { attempted: true, ok: false, toolName: decision.toolName, error: { code: "bridge_no_handle", message: `no tool "${decision.toolName}"` } } }
+      };
+    }
+    const av = validateInput(def.inputSchema, decision.arguments);
+    if (!av.ok) {
+      return {
+        ...identity,
+        steps: {
+          ...base,
+          bridge: { attempted: true, ok: true, toolName: decision.toolName, arguments: decision.arguments },
+          argsValidation: { checked: true, ok: false, missingOrInvalidFields: av.missingOrInvalidFields }
+        }
+      };
+    }
+    const outcome = await execute(runtime, decision.toolName, decision.arguments);
+    if (!outcome.ok) {
+      return {
+        ...identity,
+        steps: {
+          ...base,
+          bridge: { attempted: true, ok: false, toolName: decision.toolName, arguments: decision.arguments, ...outcome.error ? { error: outcome.error } : {} },
+          argsValidation: { checked: true, ok: true, missingOrInvalidFields: [] }
+        }
+      };
+    }
+    const result = outcome.executionResult;
+    const ev = checkEvidence(def.effect, result);
+    return {
+      ...identity,
+      steps: {
+        ...base,
+        bridge: { attempted: true, ok: true, toolName: decision.toolName, arguments: decision.arguments },
+        argsValidation: { checked: true, ok: true, missingOrInvalidFields: [] },
+        providerExec: { reached: true, ok: true, firedTool: decision.toolName, firedEffect: def.effect },
+        evidence: { checked: true, ok: ev.ok, executionResult: result, violations: ev.violations }
+      }
+    };
+  }
+  async function runPath(provider, task, adapter) {
+    const runtime = new ReferenceRuntime();
+    for (const t of provider.tools) runtime.registerTool(t.def, t.handler);
+    return runPathOnRuntime(runtime, provider.tools.map((t) => t.def), task, adapter);
+  }
+  async function buildCase(caseId, provider, task, adapters, expectedTool) {
+    const paths = [];
+    for (const a of adapters) paths.push(await runPath(provider, task, a));
+    return { caseId, task, ...expectedTool !== void 0 ? { expectedTool } : {}, paths };
+  }
+  async function buildCaseOnRuntime(caseId, runtime, defs, task, adapters, expectedTool) {
+    const paths = [];
+    for (const a of adapters) paths.push(await runPathOnRuntime(runtime, defs, task, a));
+    return { caseId, task, ...expectedTool !== void 0 ? { expectedTool } : {}, paths };
+  }
+
+  // src/report-version.ts
+  var REPORT_VERSION = "provider-conformance-report/1";
+  var REPORT_GENERATOR = "@zioladev/provider-conformance";
+  var REPORT_GENERATOR_VERSION = "0.1.0-alpha.3";
+
+  // src/report.ts
+  function stableHash(value) {
+    const json = JSON.stringify(value);
+    let h = 2166136261;
+    for (let i = 0; i < json.length; i++) {
+      h ^= json.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return `fnv1a:${(h >>> 0).toString(16).padStart(8, "0")}`;
+  }
+  function assembleReport(input) {
+    const providerDefHash = stableHash(input.declaredTools);
+    const toolSurfaceHash = stableHash(input.declaredTools.map((t) => ({ name: t.name, inputSchema: t.inputSchema, effect: t.effect })));
+    const notes = [];
+    const byLayer = {};
+    let providerGrade2 = "PASS";
+    const cases = input.cases.map((c) => {
+      const { deriveds, divergence, provider } = evaluateCase(c);
+      if (provider === "FAIL") providerGrade2 = "FAIL";
+      else if (provider === "WARN" && providerGrade2 === "PASS") providerGrade2 = "WARN";
+      const paths = c.paths.map((p, i) => {
+        const d = deriveds[i];
+        for (const [cat, v] of Object.entries(d.categoryVerdicts)) {
+          if (!v) continue;
+          const key = cat;
+          const rank = { PASS: 0, NOT_REACHED: 0, WARN: 1, FAIL: 2 };
+          if (byLayer[key] === void 0 || rank[v] > rank[byLayer[key]]) byLayer[key] = v;
+        }
+        byLayer[p.adapterId] = worst(byLayer[p.adapterId], adapterVerdict(d));
+        for (const a of d.attribution) {
+          notes.push({ layer: a.category, verdict: a.verdict, signal: a.signal, detail: a.detail });
+        }
+        return {
+          adapterId: p.adapterId,
+          adapterVersion: p.adapterVersion,
+          modelId: p.modelId,
+          observed: p.steps,
+          derived: {
+            outcome: d.outcome,
+            disposition: d.disposition,
+            signalVerdicts: d.categoryVerdicts,
+            attribution: d.attribution,
+            providerNonconformance: d.providerNonconformance,
+            observableOutcomeKey: d.observableOutcomeKey
+          }
+        };
+      });
+      return {
+        caseId: c.caseId,
+        taskId: c.task.taskId,
+        paths,
+        divergence: { kind: divergence.kind, representationalDifference: divergence.representationalDifference, withinAllowable: divergence.withinAllowable, byPath: divergence.byPath },
+        provider
+      };
+    });
+    byLayer["provider"] = providerGrade2;
+    return {
+      reportVersion: REPORT_VERSION,
+      reportGenerator: REPORT_GENERATOR,
+      reportGeneratorVersion: REPORT_GENERATOR_VERSION,
+      generatedAt: input.generatedAt ?? (/* @__PURE__ */ new Date()).toISOString(),
+      provider: {
+        name: input.providerName,
+        providerDefHash,
+        declaredTools: input.declaredTools.map((t) => ({ name: t.name, effect: t.effect }))
+      },
+      lane: { runtimeId: input.runtimeId, browserVersion: input.browserVersion, toolSurfaceHash },
+      cases,
+      summary: { provider: providerGrade2, byLayer, notes }
+    };
+  }
+  function adapterVerdict(d) {
+    const consumerCats = ["consumer_adapter", "model_tool_selection", "model_arguments"];
+    let v = "PASS";
+    for (const c of consumerCats) {
+      if (d.categoryVerdicts[c] === "FAIL") return "FAIL";
+      if (d.categoryVerdicts[c] === "WARN") v = "WARN";
+    }
+    return v;
+  }
+  function worst(a, b) {
+    const rank = { PASS: 0, NOT_REACHED: 0, WARN: 1, FAIL: 2 };
+    if (a === void 0) return b;
+    return rank[b] > rank[a] ? b : a;
+  }
+
+  // src/render.ts
+  var LABELS = {
+    provider: "Provider",
+    provider_definition: "Provider Definition",
+    provider_runtime: "Provider Runtime",
+    browser_runtime: "Browser Runtime",
+    consumer_adapter: "Consumer Adapter",
+    model_tool_selection: "Model Tool Selection",
+    model_arguments: "Model Arguments",
+    execution_bridge: "Execution Bridge",
+    provider_execution: "Provider Execution",
+    evidence_contract: "Evidence Contract"
+  };
+  var ROW_ORDER = [
+    "provider_definition",
+    "browser_runtime",
+    "provider_runtime",
+    "consumer_adapter",
+    "model_tool_selection",
+    "model_arguments",
+    "execution_bridge",
+    "provider_execution",
+    "evidence_contract"
+  ];
+  function showVerdict(v) {
+    return v === "NOT_REACHED" ? "NOT REACHED" : v;
+  }
+  function renderHuman(report) {
+    const lines = [];
+    lines.push(`# Provider conformance report`);
+    lines.push(`Provider: ${report.provider.name}`);
+    lines.push(`Report: ${report.reportVersion} (generator ${report.reportGenerator}@${report.reportGeneratorVersion})`);
+    lines.push(`Lane: ${report.lane.runtimeId}${report.lane.browserVersion ? ` \xB7 browser ${report.lane.browserVersion}` : ""}`);
+    lines.push(`Provider grade: ${showVerdict(report.summary.provider)}`);
+    lines.push("");
+    for (const c of report.cases) {
+      lines.push(`## Case: ${c.caseId}  (task ${c.taskId})`);
+      lines.push(`Behavioral divergence: ${c.divergence.kind}${c.divergence.kind !== "none" ? ` (within allowable: ${c.divergence.withinAllowable})` : ""}`);
+      lines.push(`Representational difference: ${c.divergence.representationalDifference ? "yes" : "no"}`);
+      lines.push(`Strategies: ${c.paths.map((p) => `${p.adapterId}=${p.derived.disposition}`).join(", ")}`);
+      lines.push("");
+      for (const p of c.paths) {
+        lines.push(`--- ${p.adapterId} (${p.modelId}) ---`);
+        lines.push(`Provider: ${showVerdict(c.provider)}`);
+        lines.push(`Disposition: ${p.derived.disposition}`);
+        const cv = p.derived.signalVerdicts;
+        for (const cat of ROW_ORDER) {
+          const v = cv[cat];
+          if (v === void 0) continue;
+          lines.push(`${LABELS[cat]}: ${showVerdict(v)}`);
+        }
+        lines.push("");
+        lines.push(`Outcome: ${p.derived.outcome}`);
+        if (p.derived.attribution.length > 0) {
+          lines.push("Finding:");
+          for (const a of p.derived.attribution) {
+            lines.push(`  ${a.detail}`);
+          }
+        } else {
+          lines.push("Finding: none");
+        }
+        lines.push(`Provider nonconformance: ${p.derived.providerNonconformance}`);
+        lines.push("");
+      }
+    }
+    return lines.join("\n");
+  }
+  return __toCommonJS(index_exports);
+})();
+</script>
+<script>// Chrome/WebMCP acceptance harness (browser side). Runs in a WebMCP-enabled Chrome (Canary +
+// flag). Registers the sample provider on the REAL document.modelContext, drives the
+// runtime-agnostic pipeline (window.ProviderConformance) against it, and produces the SAME
+// report contract with browser-runtime provenance. Also runs one intentionally browser-owned
+// failure to prove Browser Runtime: FAIL / Provider: PASS.
+//
+// This file is bundled into chrome-webmcp-acceptance.html by scripts/build-acceptance.ts.
+
+(function () {
+  'use strict';
+  const PC = window.ProviderConformance;
+  const $ = (id) => document.getElementById(id);
+  const log = (m) => { $('log').textContent += m + '\n'; };
+  const setStatus = (m, cls) => { const el = $('status'); el.textContent = m; el.className = 'status ' + (cls || ''); };
+
+  // The provider surface (matches evidence/three-way-2026-08-09/fixtures.json).
+  let orderCounter = 3000;
+  const providerDefs = [
+    { name: 'place_order', description: 'Place a drink order.', effect: 'state-changing',
+      inputSchema: { type: 'object', properties: { item: { type: 'string' }, size: { type: 'string', enum: ['S', 'M', 'L'] } }, required: ['item', 'size'], additionalProperties: false } },
+    { name: 'find_item', description: 'Look up a menu item.', effect: 'read',
+      inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
+  ];
+  const handlers = {
+    place_order: (a) => ({ executed: true, confirmationId: 'ORDER-' + (orderCounter++), data: { item: a.item, size: a.size } }),
+    find_item: (a) => ({ executed: true, data: { found: true, query: a.query } }),
+  };
+
+  const orderTask = { taskId: 'order-latte-M/1', text: 'Order a medium latte.', allowableOutcomes: ['executed:place_order'] };
+  const coffeeTask = { taskId: 'order-coffee-underspecified/1', text: 'Order a coffee.', allowableOutcomes: ['clarification', 'no_tool_selected'] };
+  const scripted = (decide) => PC.makeScriptedAdapter({ id: 'scripted', modelId: 'scripted/deterministic', decide });
+
+  // Wrap the real context as a WebMcpRuntime, unwrapping a WebMCP ToolResult { content:[{text}] }
+  // back to our ExecutionResult if the runtime wraps handler returns. (If your Canary build
+  // returns the handler value verbatim, the unwrap is a no-op.)
+  function makeChromeRuntime(ctx) {
+    const list = typeof ctx.getTools === 'function' ? ctx.getTools.bind(ctx) : ctx.listTools.bind(ctx);
+    return {
+      async getTools() { const t = await Promise.resolve(list()); return Array.isArray(t) ? t : []; },
+      async executeTool(tool, argsString) {
+        const raw = await Promise.resolve(ctx.executeTool(tool, argsString));
+        let s = typeof raw === 'string' ? raw : JSON.stringify(raw);
+        try {
+          const parsed = JSON.parse(s);
+          if (parsed && Array.isArray(parsed.content)) {
+            const part = parsed.content.find((p) => typeof p.text === 'string');
+            if (part) return part.text;
+          }
+        } catch (_) { /* not JSON / not wrapped */ }
+        return s;
+      },
+    };
+  }
+
+  async function registerProvider(ctx) {
+    for (const def of providerDefs) {
+      const h = handlers[def.name];
+      await Promise.resolve(ctx.registerTool({
+        name: def.name,
+        description: def.description,
+        inputSchema: def.inputSchema,
+        async execute(input) {
+          const args = input && input.arguments ? input.arguments : (input || {});
+          return await h(args); // ExecutionResult; executeTool serializes it as the tool result
+        },
+      }));
+    }
+  }
+
+  async function run() {
+    $('log').textContent = '';
+    setStatus('running…', 'pending');
+    const browserVersion = PC.captureBrowserVersion();
+    log('Browser: ' + browserVersion);
+
+    const ctx = PC.findModelContext();
+    if (!ctx) { setStatus('No WebMCP runtime. Open in a WebMCP-enabled Chrome (Canary + the WebMCP flag).', 'fail'); log('findModelContext() -> null'); return; }
+    log('WebMCP runtime detected.');
+    if (typeof ctx.registerTool !== 'function') { setStatus('runtime has no registerTool()', 'fail'); return; }
+
+    try { await registerProvider(ctx); log('Registered: ' + providerDefs.map((d) => d.name).join(', ')); }
+    catch (e) { setStatus('registration failed: ' + e.message, 'fail'); log('registerTool threw: ' + e.message + '\n(Adjust registerProvider() to your build’s registerTool shape and re-run.)'); return; }
+
+    const runtime = makeChromeRuntime(ctx);
+    const cases = [];
+    try {
+      // A: specified latte -> state-changing execution (acted).
+      cases.push(await PC.buildCaseOnRuntime('chrome-specified', runtime, providerDefs, orderTask,
+        [scripted({ type: 'tool_call', toolName: 'place_order', arguments: { item: 'latte', size: 'M' } })], 'place_order'));
+      // B: read execution against the real runtime (inspected).
+      cases.push(await PC.buildCaseOnRuntime('chrome-read', runtime, providerDefs, coffeeTask,
+        [scripted({ type: 'tool_call', toolName: 'find_item', arguments: { query: 'coffee' } })]));
+      // C: intentionally browser-owned failure (broken runtime) -> Browser Runtime FAIL / Provider PASS.
+      const broken = { getTools() { throw new Error('injected: runtime surface unsupported'); }, async executeTool() { return '{}'; } };
+      cases.push(await PC.buildCaseOnRuntime('chrome-browser-owned-failure', broken, providerDefs, orderTask,
+        [scripted({ type: 'tool_call', toolName: 'place_order', arguments: { item: 'latte', size: 'M' } })], 'place_order'));
+    } catch (e) { setStatus('run error: ' + e.message, 'fail'); log('threw: ' + (e.stack || e.message)); return; }
+
+    const report = PC.assembleReport({
+      providerName: '@example/sample-cafe', declaredTools: providerDefs,
+      runtimeId: PC.CHROME_WEBMCP_RUNTIME_ID, browserVersion, cases,
+    });
+    window.__report = report;
+    log('\n' + PC.renderHuman(report));
+    $('json').value = JSON.stringify(report, null, 2);
+
+    const providerPass = report.summary.provider === 'PASS';
+    const bof = report.cases.find((c) => c.caseId === 'chrome-browser-owned-failure');
+    const bp = bof && bof.paths[0];
+    const isolated = !!(bp && bp.derived.attribution.some((a) => a.category === 'browser_runtime') && bp.derived.providerNonconformance === false);
+    if (providerPass && isolated) setStatus('PASS — real WebMCP lane green; browser-owned failure isolated (Browser Runtime FAIL / Provider PASS).', 'pass');
+    else setStatus('Review report — providerPass=' + providerPass + ', isolated=' + isolated, 'fail');
+  }
+
+  function copyJson() { $('json').select(); document.execCommand && document.execCommand('copy'); }
+  function downloadJson() {
+    const blob = new Blob([$('json').value || '{}'], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'chrome-webmcp-report.json'; a.click();
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    $('run').addEventListener('click', run);
+    $('copy').addEventListener('click', copyJson);
+    $('download').addEventListener('click', downloadJson);
+    setStatus('ready — open in a WebMCP-enabled Chrome, then click Run.', '');
+  });
+})();
+</script>
+</body>
+</html>
