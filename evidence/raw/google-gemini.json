@@ -1,0 +1,71 @@
+{
+  "live-specified": {
+    "candidates": [
+      {
+        "content": {
+          "parts": [
+            {
+              "functionCall": {
+                "name": "place_order",
+                "args": {
+                  "item": "latte",
+                  "size": "M"
+                }
+              },
+              "thoughtSignature": "CogCARFNMg8s1UNXvonGN0TLjErRXnPxJUVWyYceW7AyvSBfbP14LrdRfdsOcydfmddwvnh4PH+lwE1Vf6YRnvzP/Q4XMm2qroiMhtfBQRemd2MIsWDleOym/ovBsrvpig2HrMLRCWbJ/QA2fQCQVB1zA73U2AO89ApxxVoGGv2fmJwBOHZshtkQ6HKYElyuv6j3LTMQcN13EKhsbBy7QXFGJ478rpQZmdrP1HamsF2sie01ZZPZa4WVpuihAr8rxC5+RWY9m0dn7oNNiJCOuXeXTgQQd/HDz3W0I841203Shg37HKSmTLiQd+/xKEkw1o/EnKeo3GY5YGyu0uI/9XbOXVI8HfLtSwU4"
+            }
+          ],
+          "role": "model"
+        },
+        "finishReason": "STOP",
+        "index": 0,
+        "finishMessage": "Model generated function call(s)."
+      }
+    ],
+    "usageMetadata": {
+      "promptTokenCount": 101,
+      "candidatesTokenCount": 21,
+      "totalTokenCount": 188,
+      "promptTokensDetails": [
+        {
+          "modality": "TEXT",
+          "tokenCount": 101
+        }
+      ],
+      "thoughtsTokenCount": 66,
+      "serviceTier": "standard"
+    },
+    "modelVersion": "gemini-2.5-flash",
+    "responseId": "xOd4aqmUIYGez7IPtNS10As"
+  },
+  "live-ambiguous": {
+    "candidates": [
+      {
+        "content": {
+          "parts": [
+            {
+              "text": "What size coffee would you like?"
+            }
+          ],
+          "role": "model"
+        },
+        "finishReason": "STOP",
+        "index": 0
+      }
+    ],
+    "usageMetadata": {
+      "promptTokenCount": 100,
+      "candidatesTokenCount": 7,
+      "totalTokenCount": 107,
+      "promptTokensDetails": [
+        {
+          "modality": "TEXT",
+          "tokenCount": 100
+        }
+      ],
+      "serviceTier": "standard"
+    },
+    "modelVersion": "gemini-2.5-flash",
+    "responseId": "xud4apbjM6XVz7IP08-M-Qg"
+  }
+}
