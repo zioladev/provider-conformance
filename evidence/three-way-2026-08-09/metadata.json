@@ -1,0 +1,43 @@
+{
+  "runDate": "2026-08-09T20:49:07.000Z",
+  "lane": {
+    "runtimeId": "reference-runtime/1",
+    "browserVersion": null,
+    "note": "reference lane — NOT real Chrome/WebMCP"
+  },
+  "reportGeneratorVersion": "0.1.0-alpha.3",
+  "reportVersion": "provider-conformance-report/1",
+  "providerDefHash": "fnv1a:9f4fe6e5",
+  "toolSurfaceHash": "fnv1a:022df758",
+  "models": [
+    {
+      "adapterId": "anthropic-claude",
+      "adapterVersion": "1.0.0",
+      "modelId": "claude-haiku-4-5-20251001",
+      "responseIds": [
+        "msg_011CdsqGCn3sVhaQ3BVxCtpN",
+        "msg_011CdsqGRyo88qcRnTp4dvEG"
+      ]
+    },
+    {
+      "adapterId": "openai-gpt",
+      "adapterVersion": "1.0.0",
+      "modelId": "gpt-4o-mini",
+      "resolvedModel": "gpt-4o-mini-2024-07-18",
+      "responseIds": [
+        "chatcmpl-EB4k75OlpUWI1AMi0t3GPqAlynrLO",
+        "chatcmpl-EB4kA6qgxrvmtNkJsnIgpzB4uO2vz"
+      ]
+    },
+    {
+      "adapterId": "google-gemini",
+      "adapterVersion": "1.0.0",
+      "modelId": "gemini-2.5-flash",
+      "responseIds": [
+        "xOd4aqmUIYGez7IPtNS10As",
+        "xud4apbjM6XVz7IP08-M-Qg"
+      ]
+    }
+  ],
+  "workflowRun": "GitHub Actions — \"Provider-conformance — live smoke (multi-model)\". The original evidence-bundle artifact is attached to that run."
+}
