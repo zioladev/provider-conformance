@@ -1,0 +1,58 @@
+{
+  "name": "@zioladev/provider-conformance",
+  "version": "0.1.0",
+  "description": "Find out where WebMCP interoperability actually broke: measure provider behavior across consumer and runtime paths, attribute failures to the layer that caused them, and keep consumer/browser failures from becoming provider failures.",
+  "keywords": [
+    "webmcp",
+    "conformance",
+    "attribution",
+    "model-context",
+    "agent",
+    "interoperability",
+    "provider"
+  ],
+  "license": "Apache-2.0",
+  "author": "Ziola",
+  "homepage": "https://github.com/zioladev/provider-conformance#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zioladev/provider-conformance.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zioladev/provider-conformance/issues"
+  },
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "demo": "node --experimental-strip-types scripts/gen-demo.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  },
+  "dependencies": {},
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}
